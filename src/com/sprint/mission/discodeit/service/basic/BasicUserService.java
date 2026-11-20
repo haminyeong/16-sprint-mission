@@ -1,29 +1,23 @@
 package com.sprint.mission.discodeit.service.basic;
 
 import com.sprint.mission.discodeit.dto.request.user.UserCreateRequest;
-import com.sprint.mission.discodeit.dto.request.user.UserUpdateRequest;
 import com.sprint.mission.discodeit.dto.response.user.UserDto;
-import com.sprint.mission.discodeit.dto.response.binarycontent.BinaryContentDto;
-
+import com.sprint.mission.discodeit.dto.request.user.UserUpdateRequest;
 import com.sprint.mission.discodeit.entity.BinaryContent;
 import com.sprint.mission.discodeit.entity.Message;
 import com.sprint.mission.discodeit.entity.ReadStatus;
 import com.sprint.mission.discodeit.entity.User;
 import com.sprint.mission.discodeit.entity.UserStatus;
-
 import com.sprint.mission.discodeit.repository.BinaryContentRepository;
 import com.sprint.mission.discodeit.repository.ChannelRepository;
 import com.sprint.mission.discodeit.repository.MessageRepository;
 import com.sprint.mission.discodeit.repository.ReadStatusRepository;
 import com.sprint.mission.discodeit.repository.UserRepository;
 import com.sprint.mission.discodeit.repository.UserStatusRepository;
-
-import com.sprint.mission.discodeit.service.BinaryContentService;
 import com.sprint.mission.discodeit.service.UserService;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Optional;
@@ -36,20 +30,12 @@ public class BasicUserService implements UserService {
     private final UserRepository userRepository;
     private final MessageRepository messageRepository;
     private final BinaryContentRepository binaryContentRepository;
-    private final BinaryContentService binaryContentService;
     private final UserStatusRepository userStatusRepository;
     private final ChannelRepository channelRepository;
     private final ReadStatusRepository readStatusRepository;
 
-    // 기존 방식의 회원가입
     @Override
     public UserDto create(UserCreateRequest request) {
-        return create(request, null);
-    }
-
-    // MultipartFile을 이용한 회원가입
-    @Override
-    public UserDto create(UserCreateRequest request, MultipartFile profile) {
         if (request == null) {
             throw new IllegalArgumentException("사용자 정보는 필수입니다.");
         }
@@ -66,10 +52,23 @@ public class BasicUserService implements UserService {
                 request.password()
         );
 
-        // 프로필 이미지가 전달된 경우 파일 저장
-        if (profile != null && !profile.isEmpty()) {
-            BinaryContentDto image = binaryContentService.create(profile);
-            user.updateProfileImage(image.id());
+        boolean hasImage = validateImageFields(
+                request.profileImageName(),
+                request.profileImageContentType(),
+                request.profileImageSize(),
+                request.profileImageData()
+        );
+
+        if (hasImage) {
+            BinaryContent image = new BinaryContent(
+                    request.profileImageName(),
+                    request.profileImageContentType(),
+                    request.profileImageSize(),
+                    request.profileImageData()
+            );
+
+            binaryContentRepository.save(image);
+            user.updateProfileImage(image.getId());
         }
 
         userRepository.save(user);
@@ -115,7 +114,6 @@ public class BasicUserService implements UserService {
         validateRequired(password, "비밀번호");
         validateUnique(request.username(), request.email(), request.id());
 
-        // 기존 회원 수정 방식의 프로필 이미지 처리 유지
         boolean hasImage = validateImageFields(
                 request.profileImageName(),
                 request.profileImageContentType(),
@@ -252,8 +250,6 @@ public class BasicUserService implements UserService {
 
         return new UserDto(
                 user.getId(),
-                user.getCreatedAt(),
-                user.getUpdatedAt(),
                 user.getUsername(),
                 user.getEmail(),
                 user.getProfileImageId(),
